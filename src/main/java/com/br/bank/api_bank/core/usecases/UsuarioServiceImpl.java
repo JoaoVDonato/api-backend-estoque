@@ -33,12 +33,19 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Override
     public Usuario registerUser(RegisterCommand registerCommand) {
 
-        Optional<UsersEntity> cpf = usuarioRepository.findByCpf(registerCommand.getCpf());
+       /* Optional<UsersEntity> cpf = usuarioRepository.findByCpf(registerCommand.getCpf());
 
         if (cpf.isPresent()) {
             log.error("Já existe um usuário para este cpf");
             throw new UserAlreadyExists("Já existe um usuário para este cpf");
-        }
+        }*/
+
+        usuarioRepository.findByCpf(registerCommand.getCpf())
+                .ifPresent(cpf -> {
+                    log.error("Já existe um usuário para este CPF: {}", registerCommand.getCpf());
+                    throw new UserAlreadyExists("Já existe um usuário para este CPF");
+                });
+
 
         UsersEntity usersEntity = createUser(registerCommand);
         UsersConfigEntity usersConfigEntity = createUserConfig(registerCommand, usersEntity);

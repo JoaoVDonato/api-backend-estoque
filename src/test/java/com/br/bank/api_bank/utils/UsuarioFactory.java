@@ -1,6 +1,7 @@
 package com.br.bank.api_bank.utils;
 
 import com.br.bank.api_bank.adapters.api.http.dto.LoginDTO;
+import com.br.bank.api_bank.adapters.api.http.dto.RegisterDTO;
 import com.br.bank.api_bank.core.domain.Cpf;
 import com.br.bank.api_bank.core.domain.Password;
 import com.br.bank.api_bank.core.domain.Role;
@@ -110,5 +111,33 @@ public class UsuarioFactory {
         loginDTO.setLogin("12345678914");
         loginDTO.setPassword("12345");
         return loginDTO;
+    }
+
+    public static RegisterDTO createRegisteAdminDTO(){
+
+        return RegisterDTO.builder()
+                .cpf("12345678913")
+                .name("John")
+                .password("12345")
+                .email("john@john.com")
+                .phoneNumber("14997284444")
+                .dateBirthday("31/03/1996")
+                .address("boulevard street")
+                .role("ADMIN")
+                .build();
+    }
+
+    public static RegisterDTO createRegisteUserDTO(){
+
+        return RegisterDTO.builder()
+                .cpf("12345678916")
+                .name("João usuário")
+                .password("1234")
+                .email("joao@usuario.com")
+                .phoneNumber("14997287435")
+                .dateBirthday("31/03/1994")
+                .address("Rua dos 2")
+                .role("USER")
+                .build();
     }
 }

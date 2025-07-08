@@ -1,9 +1,11 @@
 package com.br.bank.api_bank.adapters.api.http.dto;
 
+import lombok.Builder;
 import lombok.Data;
 import lombok.Getter;
 
 @Data
+@Builder
 public class RegisterDTO {
 
     private String cpf;

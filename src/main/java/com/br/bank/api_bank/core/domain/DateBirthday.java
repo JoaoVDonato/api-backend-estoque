@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 
 @Data
@@ -20,7 +21,8 @@ public class DateBirthday {
     public static DateBirthday convertDate(String date){
 
         try{
-            return new DateBirthday(LocalDate.parse(date));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            return new DateBirthday(LocalDate.parse(date, formatter));
         }catch(DateTimeParseException e){
             throw new DateTimeParseException(
                     "Ocorreu um erro na conversão da data: " + date,

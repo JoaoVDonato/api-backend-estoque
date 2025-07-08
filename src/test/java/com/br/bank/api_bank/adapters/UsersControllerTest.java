@@ -1,18 +1,18 @@
 package com.br.bank.api_bank.adapters;
 
 import com.br.bank.api_bank.adapters.api.http.dto.LoginDTO;
+import com.br.bank.api_bank.adapters.api.http.dto.RegisterDTO;
 import com.br.bank.api_bank.core.domain.Cpf;
-import com.br.bank.api_bank.core.domain.Password;
 import com.br.bank.api_bank.core.domain.Usuario;
+import com.br.bank.api_bank.core.ports.inbound.UsuarioService;
 import com.br.bank.api_bank.core.ports.outbound.UsersConfigRepository;
 import com.br.bank.api_bank.core.ports.outbound.UsuarioRepository;
+import com.br.bank.api_bank.core.usecases.commands.RegisterCommand;
 import com.br.bank.api_bank.infrastructure.persistence.entities.UsersEntity;
 import com.br.bank.api_bank.infrastructure.security.TokenService;
+import com.br.bank.api_bank.utils.RegisterCommandFactory;
 import com.br.bank.api_bank.utils.UsuarioFactory;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -32,8 +33,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +49,9 @@ public class UsersControllerTest {
 
     private static String tokenAdmin1;
     private static String tokenUser1;
+
+    @Autowired
+    UsuarioService usuarioService;
 
     @Autowired
     UsuarioRepository usuarioRepository;
@@ -61,6 +67,11 @@ public class UsersControllerTest {
 
     @Autowired
     TokenService tokenService;
+
+    ObjectMapper mapper;
+
+    UsersEntity userEntityAdmin;
+    UsersEntity userEntity;
 
     @Container
     static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres")
@@ -86,15 +97,20 @@ public class UsersControllerTest {
         postgreSQLContainer.stop();
     }
 
+    @AfterEach
+    void afterEach(){
+        usersConfigRepository.deleteAll();
+        usuarioRepository.deleteAll();
+    }
+
 
     @BeforeEach
     public void setUp() {
-        usersConfigRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        mapper = new ObjectMapper();
 
-        UsersEntity userEntityAdmin = UsuarioFactory.createUserWithConfigAdmin();
-        UsersEntity userEntity = UsuarioFactory.createUserWithConfig();
-        usuarioRepository.saveAll(List.of(userEntityAdmin, userEntity));
+        userEntityAdmin = UsuarioFactory.createUserWithConfigAdmin();
+        userEntity = UsuarioFactory.createUserWithConfig();
+
 
         Usuario userDomainAdmin = UsuarioFactory.createUserDomainAdmin();
         Usuario userDomain = UsuarioFactory.createUserDomain();
@@ -106,10 +122,9 @@ public class UsersControllerTest {
     public void login_admin_sucessTest() throws Exception {
 
         LoginDTO login = UsuarioFactory.createLoginAdmin();
-
-        ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writeValueAsString(login);
         Usuario userDomainAdmin = UsuarioFactory.createUserDomainAdmin();
+        usuarioRepository.saveAll(List.of(userEntityAdmin, userEntity));
 
         Authentication auth = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
@@ -129,9 +144,10 @@ public class UsersControllerTest {
     public void login_user_successTest() throws Exception {
 
         LoginDTO login = UsuarioFactory.createLoginUser();
-        ObjectMapper mapper = new ObjectMapper();
         String json = mapper.writeValueAsString(login);
         Usuario userDomain = UsuarioFactory.createUserDomain();
+        usuarioRepository.saveAll(List.of(userEntityAdmin, userEntity));
+
 
         Authentication auth = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
@@ -147,30 +163,78 @@ public class UsersControllerTest {
                 .andExpect(jsonPath("$.token").value(tokenUser1));
     }
 
-
     @Test
-    public void login_user_notFoundTest() throws Exception{
+    public void login_admin_notFoundTest() throws Exception {
 
-        LoginDTO login = new LoginDTO("12345678901", "123");
-        ObjectMapper mapper = new ObjectMapper();
+        LoginDTO login = new LoginDTO("12345678917", "1234");
         String json = mapper.writeValueAsString(login);
+
         Usuario userDomainAdmin = UsuarioFactory.createUserDomainAdmin();
-        userDomainAdmin.setCpf(Cpf.of("12345678901"));
-        userDomainAdmin.setPassword(Password.of("123"));
 
-
-        Authentication auth = mock(Authentication.class);
-        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-        when(auth.getPrincipal()).thenReturn(userDomainAdmin);
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new UsernameNotFoundException("User not found with CPF: " + userDomainAdmin.getCpf().getCpf()));
 
         MockHttpServletRequestBuilder request = MockMvcRequestBuilders.post("/bank/auth")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json);
 
         mvc.perform(request)
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("message").value("User not found with CPF: 12345678901")); // Ajuste conforme a mensagem de erro esperada
-
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("message").value("User not found with CPF: 12345678913"));
     }
+
+    @Test
+    @DisplayName("Deve registrar um usuário Admin e retornar status 200 ok com os dados salvos")
+    public void testRegisterUserAdmin_Success() throws Exception {
+
+        RegisterDTO registerAdminDTO = UsuarioFactory.createRegisteAdminDTO();
+        RegisterCommand registerCommand = RegisterCommandFactory.create();
+        Usuario userDomainAdmin = UsuarioFactory.createUserDomainAdmin();
+        UsersEntity userEntityAdmin = UsuarioFactory.createUserWithConfigAdmin();
+
+        when(usuarioService.registerUser(registerCommand)).thenReturn(userDomainAdmin);
+        when(usuarioRepository.findByCpf("12345678913")).thenReturn(Optional.empty());
+
+        MockHttpServletRequestBuilder request = MockMvcRequestBuilders.post("/bank/register")
+                .header("Authorization", "Bearer " + tokenAdmin1)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(registerAdminDTO));
+
+        mvc.perform(request).andExpect(status().isOk());
+
+       /* RegisterUserDTO registerUserDTO = UsuarioFactory.createRegisterUser();
+        Usuario userDomain = UsuarioFactory.createUserDomain("00000011112", "admin", 1L);
+        Usuario usuarioAdmin = UsuarioFactory.createUserDomain("11111111112", "admin", 1L);
+
+        when(usuarioService.buscarUsuarioToken(tokenAdmin2)).thenReturn(usuarioAdmin);
+
+        when(usuarioService.registerUser(
+                any(RegisterUsuarioCommand.class),
+                any(RegisterUsuarioConfigCommand.class)))
+                .thenReturn(userDomain);
+
+
+        MockHttpServletRequestBuilder request = MockMvcRequestBuilders.post("/nriskapp/registrar")
+                .header("Authorization", "Bearer " + tokenAdmin2)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registerUserDTO));
+
+        mvc.perform(request)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cpf").value(userDomain.getCpf().getValue()))
+                .andExpect(jsonPath("$.tipo").value(userDomain.getRole().getRole()))
+                .andExpect(jsonPath("$.nome").value(userDomain.getNome()))
+                .andExpect(jsonPath("$.config.acesso").value(userDomain.getConfig().isAcesso()))
+                .andExpect(jsonPath("$.config.frequenciaForaJanela").value(userDomain.getConfig().getFrequenciaForaJanela()))
+                .andExpect(jsonPath("$.config.janelaAtiva.janelaInicio").value("01:05:00"))
+                .andExpect(jsonPath("$.config.janelaAtiva.janelaFim").value("02:05:00"))
+                .andExpect(jsonPath("$.config.janelaAtiva.frequencia").value(userDomain.getConfig().getJanelaAtiva().getFrequencia()))
+                .andExpect(jsonPath("$.config.janelaAtiva.diasValidos", hasSize(userDomain.getConfig().getJanelaAtiva().getDiasValidos().size())))
+                .andExpect(jsonPath("$.config.janelaAtiva.diasValidos[0]").value("SEG"))
+                .andExpect(jsonPath("$.config.janelaAtiva.diasValidos[1]").value("TER"));*/
+    }
+
 
 }
